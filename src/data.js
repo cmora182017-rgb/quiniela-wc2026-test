@@ -38,6 +38,7 @@ export const POINT_RULES = {
   elimWinner: 2,
   campeon: 5,
   goleador: 4,
+  primerGol: 5,
 }
 
 // ─── PARTIDOS DE GRUPOS (hora UTC) ───────────────────────────────────────────

@@ -32,19 +32,25 @@ function ScoreInput({ value, onChange, green, locked }) {
   )
 }
 
-function MatchCard({ match, pred, onSave, result, isKnockout, isJoker, onToggleJoker, jokerUsed, stageLabel }) {
+function MatchCard({ match, pred, onSave, result, isKnockout, isJoker, onToggleJoker, jokerUsed, stageLabel, onSaveScorer }) {
   const [h, setH] = useState(pred?.home_score ?? "")
   const [a, setA] = useState(pred?.away_score ?? "")
+  const [scorer, setScorer] = useState(pred?.scorer ?? "")
   const [saving, setSaving] = useState(false)
   const locked = isLocked(match.kickoff)
 
-  useEffect(() => { setH(pred?.home_score ?? ""); setA(pred?.away_score ?? "") }, [pred])
+  useEffect(() => { setH(pred?.home_score ?? ""); setA(pred?.away_score ?? ""); setScorer(pred?.scorer ?? "") }, [pred])
 
   async function save() {
     if (locked || saving) return
     setSaving(true)
     await onSave({ home_score: h === "" ? null : parseInt(h), away_score: a === "" ? null : parseInt(a) })
     setSaving(false)
+  }
+
+  async function saveScorer() {
+    if (locked || !onSaveScorer) return
+    await onSaveScorer(scorer)
   }
 
   const basePts = result ? calcPoints({ home_score: pred?.home_score, away_score: pred?.away_score }, result, isKnockout) : null
@@ -89,7 +95,27 @@ function MatchCard({ match, pred, onSave, result, isKnockout, isJoker, onToggleJ
       {result && result.home_score != null && (
         <div style={{textAlign:"center",fontSize:11,color:"#6a8caa",marginTop:5}}>
           Real: {result.home_score} – {result.away_score}
+          {result.scorer && <span style={{marginLeft:8}}>⚽ {result.scorer}</span>}
         </div>
+      )}
+      {/* Scorer input */}
+      {!locked && onSaveScorer && (
+        <div style={{display:"flex",gap:6,marginTop:8,alignItems:"center"}}>
+          <span style={{fontSize:11,color:"#ff9500",whiteSpace:"nowrap"}}>⚽ 1er gol:</span>
+          <input
+            value={scorer} onChange={e=>setScorer(e.target.value)} onBlur={saveScorer}
+            placeholder="Nombre del jugador (+5pts)"
+            style={{flex:1,padding:"4px 8px",borderRadius:8,border:"1px solid rgba(255,150,0,0.3)",background:"rgba(255,150,0,0.08)",color:"#ff9500",fontSize:11,outline:"none"}}
+          />
+          {pred?.scorer && result?.scorer && (
+            <span style={{fontSize:10,color: pred.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim()?"#4cdc6a":"#e85555",fontWeight:700}}>
+              {pred.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim()?"✅+5":"❌"}
+            </span>
+          )}
+        </div>
+      )}
+      {locked && pred?.scorer && (
+        <div style={{fontSize:11,color:"#ff9500",marginTop:6}}>⚽ Tu 1er gol: <strong>{pred.scorer}</strong></div>
       )}
     </div>
   )
@@ -227,6 +253,17 @@ export default function App() {
         pts += earned
         if (pred?.is_joker && base > 0) jokerBonus += base
       })
+      // Primer Gol por partido
+      GROUP_MATCHES.forEach(m => {
+        const pred = userPreds[m.id]
+        const res = resMap[m.id]
+        if (pred?.scorer && res?.scorer && pred.scorer.toLowerCase().trim() === res.scorer.toLowerCase().trim()) pts += POINT_RULES.primerGol
+      })
+      KNOCKOUT_STAGES.forEach(s => {
+        const pred = userKoPreds[s.id]
+        const res = resMap[s.id]
+        if (pred?.scorer && res?.scorer && pred.scorer.toLowerCase().trim() === res.scorer.toLowerCase().trim()) pts += POINT_RULES.primerGol
+      })
       if (userSp.champion && spR.champion && userSp.champion === spR.champion) pts += POINT_RULES.campeon
       if (userSp.top_scorer && spR.top_scorer && userSp.top_scorer.toLowerCase().trim() === spR.top_scorer.toLowerCase().trim()) pts += POINT_RULES.goleador
 
@@ -279,6 +316,21 @@ export default function App() {
       is_joker: newVal, updated_at: new Date().toISOString()
     }, { onConflict: `user_id,${idField}` })
     setStore(prev => ({ ...prev, [matchId]: { ...prev[matchId], is_joker: newVal } }))
+  }
+
+  async function savePredScorer(matchId, scorer, isKo) {
+    const table = isKo ? 'knockout_predictions' : 'predictions'
+    const idField = isKo ? 'stage_id' : 'match_id'
+    const store = isKo ? koPredictions : predictions
+    const setStore = isKo ? setKoPredictions : setPredictions
+    await supabase.from(table).upsert({
+      user_id: session.user.id, [idField]: matchId,
+      home_score: store[matchId]?.home_score, away_score: store[matchId]?.away_score,
+      is_joker: store[matchId]?.is_joker || false,
+      scorer: scorer,
+      updated_at: new Date().toISOString()
+    }, { onConflict: `user_id,${idField}` })
+    setStore(prev => ({ ...prev, [matchId]: { ...prev[matchId], scorer } }))
   }
 
   async function saveKoPrediction(stageId, scores) {
@@ -364,6 +416,7 @@ export default function App() {
             <span>🏆 Campeón</span><span style={{color:"#f5c842",fontWeight:700,textAlign:"right"}}>+{POINT_RULES.campeon}</span>
             <span>👟 Goleador</span><span style={{color:"#f5c842",fontWeight:700,textAlign:"right"}}>+{POINT_RULES.goleador}</span>
             <span style={{color:"#ff9500"}}>🃏 Comodín (1/jornada)</span><span style={{color:"#ff9500",fontWeight:700,textAlign:"right"}}>×2</span>
+            <span style={{color:"#4cdc6a"}}>⚽ Primer gol del partido</span><span style={{color:"#4cdc6a",fontWeight:700,textAlign:"right"}}>+{POINT_RULES.primerGol}</span>
           </div>
         </div>
       </div>
@@ -408,7 +461,8 @@ export default function App() {
                     isKnockout={false} isJoker={predictions[m.id]?.is_joker||false}
                     jokerUsed={jokerMatch!==null && jokerMatch!==m.id}
                     onToggleJoker={()=>toggleJoker(m.id,roundId,false)}
-                    onSave={scores=>savePrediction(m.id,scores)} />
+                    onSave={scores=>savePrediction(m.id,scores)}
+                    onSaveScorer={scorer=>savePredScorer(m.id,scorer,false)} />
                 ))}
               </div>
             )
@@ -437,7 +491,8 @@ export default function App() {
                       isJoker={koPredictions[s.id]?.is_joker||false}
                       jokerUsed={jokerStage!==null && jokerStage!==s.id}
                       onToggleJoker={()=>toggleJoker(s.id,round.id,true)}
-                      onSave={scores=>saveKoPrediction(s.id,scores)} />
+                      onSave={scores=>saveKoPrediction(s.id,scores)}
+                      onSaveScorer={scorer=>savePredScorer(s.id,scorer,true)} />
                   )
                 })}
               </div>
@@ -533,8 +588,8 @@ export default function App() {
         </div>
         <div style={{padding:"12px 12px 60px"}}>
           {adminTab==="grupos" && GROUP_MATCHES.map(m=>{
-            const [h,setH] = [results[m.id]?.home_score??"",(v)=>saveResult(m.id,{home_score:v===''?null:parseInt(v),away_score:results[m.id]?.away_score??null})]
-            const [a,setA] = [results[m.id]?.away_score??"",(v)=>saveResult(m.id,{home_score:results[m.id]?.home_score??null,away_score:v===''?null:parseInt(v)})]
+            const [h,setH] = [results[m.id]?.home_score??"",(v)=>saveResult(m.id,{home_score:v===''?null:parseInt(v),away_score:results[m.id]?.away_score??null,scorer:results[m.id]?.scorer??null})]
+            const [a,setA] = [results[m.id]?.away_score??"",(v)=>saveResult(m.id,{home_score:results[m.id]?.home_score??null,away_score:v===''?null:parseInt(v),scorer:results[m.id]?.scorer??null})]
             return (
               <div key={m.id} style={{...S.card}}>
                 <div style={{fontSize:10,color:"#6a8caa",marginBottom:5}}>Grupo {m.group} · {m.home} vs {m.away}</div>
@@ -550,6 +605,12 @@ export default function App() {
                   <div style={{flex:1,display:"flex",alignItems:"center",gap:5}}>
                     <span>{FLAGS[m.away]||"🏳️"}</span><span style={{fontSize:11,fontWeight:600}}>{m.away}</span>
                   </div>
+                </div>
+                <div style={{display:"flex",gap:6,marginTop:8,alignItems:"center"}}>
+                  <span style={{fontSize:11,color:"#4cdc6a",whiteSpace:"nowrap"}}>⚽ 1er gol:</span>
+                  <input value={results[m.id]?.scorer||""} onChange={e=>saveResult(m.id,{home_score:results[m.id]?.home_score??null,away_score:results[m.id]?.away_score??null,scorer:e.target.value})}
+                    placeholder="Nombre del primer goleador"
+                    style={{flex:1,padding:"4px 8px",borderRadius:8,border:"1px solid rgba(76,220,106,0.3)",background:"rgba(76,220,106,0.08)",color:"#4cdc6a",fontSize:11,outline:"none"}}/>
                 </div>
               </div>
             )
