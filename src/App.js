@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabaseClient'
+import { SQUADS } from './squads'
 import {
   FLAGS, ALL_TEAMS, POINT_RULES,
   GROUP_MATCHES, KNOCKOUT_STAGES, KNOCKOUT_ROUNDS,
@@ -98,15 +99,18 @@ function MatchCard({ match, pred, onSave, result, isKnockout, isJoker, onToggleJ
           {result.scorer && <span style={{marginLeft:8}}>⚽ {result.scorer}</span>}
         </div>
       )}
-      {/* Scorer input */}
+      {/* Scorer dropdown */}
       {!locked && onSaveScorer && (
         <div style={{display:"flex",gap:6,marginTop:8,alignItems:"center"}}>
           <span style={{fontSize:11,color:"#ff9500",whiteSpace:"nowrap"}}>⚽ 1er gol:</span>
-          <input
-            value={scorer} onChange={e=>setScorer(e.target.value)} onBlur={saveScorer}
-            placeholder="Nombre del jugador (+5pts)"
-            style={{flex:1,padding:"4px 8px",borderRadius:8,border:"1px solid rgba(255,150,0,0.3)",background:"rgba(255,150,0,0.08)",color:"#ff9500",fontSize:11,outline:"none"}}
-          />
+          <select
+            value={scorer} onChange={e=>{setScorer(e.target.value); onSaveScorer(e.target.value)}}
+            style={{flex:1,padding:"4px 8px",borderRadius:8,border:"1px solid rgba(255,150,0,0.3)",background:"#0d1b2a",color:"#ff9500",fontSize:11,outline:"none"}}>
+            <option value="">— Seleccionar jugador (+5pts) —</option>
+            {[...(SQUADS[match.home]||[]), ...(SQUADS[match.away]||[])].sort().map(p=>(
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
           {pred?.scorer && result?.scorer && (
             <span style={{fontSize:10,color: pred.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim()?"#4cdc6a":"#e85555",fontWeight:700}}>
               {pred.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim()?"✅+5":"❌"}
