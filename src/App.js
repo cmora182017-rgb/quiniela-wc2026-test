@@ -531,10 +531,14 @@ export default function App() {
               </div>
               <p style={{margin:"0 0 10px",fontSize:11,letterSpacing:3,color:"#f5c842",textTransform:"uppercase"}}>👟 Goleador del Torneo (+{POINT_RULES.goleador} pts)</p>
               <div style={S.card}>
-                <input value={specialPred.top_scorer||""} onChange={e=>!isSpecialsLocked()&&saveSpecial("top_scorer",e.target.value)}
+                <select value={specialPred.top_scorer||""} onChange={e=>!isSpecialsLocked()&&saveSpecial("top_scorer",e.target.value)}
                   disabled={isSpecialsLocked()}
-                  placeholder="Ej: Mbappé, Vinicius Jr..."
-                  style={{...S.input, opacity:isSpecialsLocked()?0.5:1, cursor:isSpecialsLocked()?"not-allowed":"text"}}/>
+                  style={{width:"100%",padding:"10px 14px",borderRadius:10,border:"1px solid rgba(255,255,255,0.15)",background:"#0d1b2a",color:specialPred.top_scorer?"#fff":"#6a8caa",fontSize:13,opacity:isSpecialsLocked()?0.5:1,cursor:isSpecialsLocked()?"not-allowed":"pointer",outline:"none"}}>
+                  <option value="">— Seleccionar goleador del torneo —</option>
+                  {Object.values(SQUADS).flat().filter((v,i,a)=>a.indexOf(v)===i).sort().map(p=>(
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
                 {specialPred.top_scorer&&<p style={{margin:"8px 0 0",fontSize:12,color:"#aac4e0"}}>Tu goleador: <strong style={{color:"#fff"}}>{specialPred.top_scorer}</strong></p>}
               </div>
             </div>
@@ -673,8 +677,13 @@ export default function App() {
                 })}
               </div>
               <p style={{margin:"0 0 9px",fontSize:11,letterSpacing:3,color:"#4cdc6a",textTransform:"uppercase"}}>👟 Goleador Real</p>
-              <input value={specialResults.top_scorer||""} onChange={e=>saveSpecialResult("top_scorer",e.target.value)}
-                placeholder="Nombre del goleador" style={S.input}/>
+              <select value={specialResults.top_scorer||""} onChange={e=>saveSpecialResult("top_scorer",e.target.value)}
+                style={{width:"100%",padding:"10px 14px",borderRadius:10,border:"1px solid rgba(76,220,106,0.3)",background:"#0d1b2a",color:specialResults.top_scorer?"#4cdc6a":"#6a8caa",fontSize:13,outline:"none"}}>
+                <option value="">— Seleccionar goleador real —</option>
+                {Object.values(SQUADS).flat().filter((v,i,a)=>a.indexOf(v)===i).sort().map(p=>(
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
             </div>
           )}
         </div>
