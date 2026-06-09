@@ -40,7 +40,11 @@ function MatchCard({ match, pred, onSave, result, isKnockout, isJoker, onToggleJ
   const [saving, setSaving] = useState(false)
   const locked = isLocked(match.kickoff)
 
-  useEffect(() => { setH(pred?.home_score ?? ""); setA(pred?.away_score ?? ""); setScorer(pred?.scorer ?? "") }, [pred])
+  useEffect(() => {
+    if (pred?.home_score != null && pred?.home_score !== "") setH(pred.home_score)
+    if (pred?.away_score != null && pred?.away_score !== "") setA(pred.away_score)
+    if (pred?.scorer) setScorer(pred.scorer)
+  }, [pred?.home_score, pred?.away_score, pred?.scorer])
 
   async function save() {
     if (locked || saving) return
