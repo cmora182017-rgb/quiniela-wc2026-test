@@ -116,7 +116,7 @@ export const GROUP_MATCHES = [
   { id:"GM050", group:"B", home:"Bosnia y Herz.",  away:"Qatar",          kickoff:"2026-06-24T19:00:00Z", round:"GR3" },
   { id:"GM051", group:"C", home:"Escocia",         away:"Brasil",         kickoff:"2026-06-24T22:00:00Z", round:"GR3" },
   { id:"GM052", group:"C", home:"Marruecos",       away:"Haití",          kickoff:"2026-06-24T22:00:00Z", round:"GR3" },
-  { id:"GM053", group:"A", home:"Suecia",     away:"México",         kickoff:"2026-06-25T01:00:00Z", round:"GR3" },
+  { id:"GM053", group:"A", home:"Chequia",       away:"México",         kickoff:"2026-06-25T01:00:00Z", round:"GR3" },
   { id:"GM054", group:"A", home:"Sudáfrica",       away:"Corea del Sur",  kickoff:"2026-06-25T01:00:00Z", round:"GR3" },
   // Jueves 25 jun
   { id:"GM055", group:"E", home:"Ecuador",         away:"Alemania",       kickoff:"2026-06-25T20:00:00Z", round:"GR3" },
