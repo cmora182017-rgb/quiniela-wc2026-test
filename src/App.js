@@ -125,6 +125,12 @@ function MatchCard({ match, pred, onSave, result, isKnockout, isJoker, onToggleJ
       {locked && pred?.scorer && (
         <div style={{fontSize:11,color:"#ff9500",marginTop:6}}>⚽ Tu 1er gol: <strong>{pred.scorer}</strong></div>
       )}
+      {locked && onViewPreds && (
+        <button onClick={onViewPreds}
+          style={{marginTop:8,width:"100%",padding:"5px",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,color:"#aac4e0",cursor:"pointer",fontSize:11}}>
+          👁️ Ver pronósticos de todos
+        </button>
+      )}
     </div>
   )
 }
@@ -147,6 +153,8 @@ export default function App() {
   const [koTeams, setKoTeams] = useState({})
   const [specialResults, setSpecialResults] = useState({})
   const [leaderboard, setLeaderboard] = useState([])
+  const [allMatchPreds, setAllMatchPreds] = useState({}) // { matchId: [{name, home_score, away_score, scorer, is_joker}] }
+  const [comparingMatch, setComparingMatch] = useState(null)
   const [allProfiles, setAllProfiles] = useState([])
 
   // Auth
@@ -374,6 +382,24 @@ export default function App() {
     setSpecialResults(prev => ({ ...prev, [field]: value }))
   }
 
+  async function loadMatchPredictions(matchId, isKo) {
+    const table = isKo ? 'knockout_predictions' : 'predictions'
+    const idField = isKo ? 'stage_id' : 'match_id'
+    const { data } = await supabase.from(table).select('*, profiles(name)').eq(idField, matchId)
+    if (data) {
+      const preds = data.map(p => ({
+        name: p.profiles?.name || 'Desconocido',
+        home_score: p.home_score,
+        away_score: p.away_score,
+        scorer: p.scorer,
+        is_joker: p.is_joker
+      })).sort((a,b) => a.name.localeCompare(b.name))
+      setAllMatchPreds(prev => ({ ...prev, [matchId]: preds }))
+      setComparingMatch(matchId)
+      setScreen('compare')
+    }
+  }
+
   const getMedal = i => ["🥇","🥈","🥉"][i] || `${i+1}°`
 
   // ─── AUTH SCREENS ──────────────────────────────────────────────────────────
@@ -470,7 +496,8 @@ export default function App() {
                     jokerUsed={jokerMatch!==null && jokerMatch!==m.id}
                     onToggleJoker={()=>toggleJoker(m.id,roundId,false)}
                     onSave={scores=>savePrediction(m.id,scores)}
-                    onSaveScorer={scorer=>savePredScorer(m.id,scorer,false)} />
+                    onSaveScorer={scorer=>savePredScorer(m.id,scorer,false)}
+                    onViewPreds={isLocked(m.kickoff)?()=>loadMatchPredictions(m.id,false):null} />
                 ))}
               </div>
             )
@@ -620,9 +647,13 @@ export default function App() {
                 </div>
                 <div style={{display:"flex",gap:6,marginTop:8,alignItems:"center"}}>
                   <span style={{fontSize:11,color:"#4cdc6a",whiteSpace:"nowrap"}}>⚽ 1er gol:</span>
-                  <input value={results[m.id]?.scorer||""} onChange={e=>saveResult(m.id,{home_score:results[m.id]?.home_score??null,away_score:results[m.id]?.away_score??null,scorer:e.target.value})}
-                    placeholder="Nombre del primer goleador"
-                    style={{flex:1,padding:"4px 8px",borderRadius:8,border:"1px solid rgba(76,220,106,0.3)",background:"rgba(76,220,106,0.08)",color:"#4cdc6a",fontSize:11,outline:"none"}}/>
+                  <select value={results[m.id]?.scorer||""} onChange={e=>saveResult(m.id,{home_score:results[m.id]?.home_score??null,away_score:results[m.id]?.away_score??null,scorer:e.target.value})}
+                    style={{flex:1,padding:"4px 8px",borderRadius:8,border:"1px solid rgba(76,220,106,0.3)",background:"#0d1b2a",color:results[m.id]?.scorer?"#4cdc6a":"#6a8caa",fontSize:11,outline:"none"}}>
+                    <option value="">— Seleccionar goleador —</option>
+                    {[...(SQUADS[m.home]||[]), ...(SQUADS[m.away]||[])].sort().map(p=>(
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             )
@@ -690,6 +721,68 @@ export default function App() {
               </select>
             </div>
           )}
+        </div>
+      </div>
+    )
+  }
+
+  // ─── COMPARE SCREEN ──────────────────────────────────────────────────────────
+  if (screen === 'compare') {
+    const preds = allMatchPreds[comparingMatch] || []
+    // Find match info
+    const matchInfo = GROUP_MATCHES.find(m=>m.id===comparingMatch) || 
+                      KNOCKOUT_STAGES.find(s=>s.id===comparingMatch)
+    const isKo = !!KNOCKOUT_STAGES.find(s=>s.id===comparingMatch)
+    const homeTeam = isKo ? knockoutTeams[comparingMatch]?.home_team : matchInfo?.home
+    const awayTeam = isKo ? knockoutTeams[comparingMatch]?.away_team : matchInfo?.away
+    const result = results[comparingMatch]
+
+    return (
+      <div style={{fontFamily:"Georgia,serif",background:"#0a0f1e",minHeight:"100vh",color:"#fff",padding:20}}>
+        <button onClick={()=>setScreen("predictions")} style={{background:"none",border:"none",color:"#6a8caa",cursor:"pointer",fontSize:14,marginBottom:16}}>← Volver</button>
+        <h2 style={{margin:"0 0 4px",fontSize:20,fontWeight:700}}>👁️ Pronósticos del partido</h2>
+        <div style={{fontSize:14,color:"#aac4e0",marginBottom:16}}>
+          {FLAGS[homeTeam]||"🏳️"} {homeTeam} vs {awayTeam} {FLAGS[awayTeam]||"🏳️"}
+        </div>
+        {result?.home_score!=null && (
+          <div style={{background:"rgba(76,220,106,0.1)",border:"1px solid rgba(76,220,106,0.3)",borderRadius:12,padding:"10px 14px",marginBottom:16,textAlign:"center"}}>
+            <div style={{fontSize:12,color:"#4cdc6a",marginBottom:4}}>RESULTADO REAL</div>
+            <div style={{fontSize:22,fontWeight:700,color:"#fff"}}>{result.home_score} – {result.away_score}</div>
+            {result.scorer && <div style={{fontSize:12,color:"#ff9500",marginTop:4}}>⚽ 1er gol: {result.scorer}</div>}
+          </div>
+        )}
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {preds.length === 0
+            ? <p style={{color:"#6a8caa",textAlign:"center",marginTop:40}}>Nadie pronosticó este partido aún.</p>
+            : preds.map((p,i) => {
+                const base = calcPoints({home_score:p.home_score,away_score:p.away_score}, result, isKo)
+                const pts = p.is_joker ? base*2 : base
+                const scorerPts = p.scorer && result?.scorer && p.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim() ? 5 : 0
+                const ptColor = pts > 0 ? "#4cdc6a" : "#e85555"
+                return (
+                  <div key={i} style={{background:"rgba(255,255,255,0.05)",borderRadius:12,padding:"12px 14px",border:`1px solid ${p.name===session.user.email||allProfiles.find(pr=>pr.id===session.user.id)?.name===p.name?"rgba(245,200,66,0.4)":"rgba(255,255,255,0.08)"}`}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:700,fontSize:14}}>{p.name}</div>
+                        {p.scorer && <div style={{fontSize:11,color:"#ff9500",marginTop:2}}>⚽ {p.scorer} {scorerPts>0?"✅":result?.scorer?"❌":""}</div>}
+                        {p.is_joker && <div style={{fontSize:10,color:"#ff9500"}}>🃏 Comodín ×2</div>}
+                      </div>
+                      <div style={{textAlign:"center",minWidth:70}}>
+                        <div style={{fontSize:20,fontWeight:700}}>
+                          {p.home_score!=null?p.home_score:"?"} – {p.away_score!=null?p.away_score:"?"}
+                        </div>
+                      </div>
+                      {result?.home_score!=null && (
+                        <div style={{textAlign:"right",minWidth:40}}>
+                          <div style={{fontSize:16,fontWeight:700,color:ptColor}}>{pts>0?`+${pts+scorerPts}`:scorerPts>0?`+${scorerPts}`:"0"}</div>
+                          <div style={{fontSize:10,color:"#6a8caa"}}>pts</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+          }
         </div>
       </div>
     )
