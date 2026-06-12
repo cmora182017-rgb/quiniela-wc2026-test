@@ -33,7 +33,7 @@ function ScoreInput({ value, onChange, green, locked }) {
   )
 }
 
-function MatchCard({ match, pred, onSave, result, isKnockout, isJoker, onToggleJoker, jokerUsed, stageLabel, onSaveScorer }) {
+function MatchCard({ match, pred, onSave, result, isKnockout, isJoker, onToggleJoker, jokerUsed, stageLabel, onSaveScorer, onViewPreds }) {
   const [h, setH] = useState(pred?.home_score ?? "")
   const [a, setA] = useState(pred?.away_score ?? "")
   const [scorer, setScorer] = useState(pred?.scorer ?? "")
@@ -733,8 +733,9 @@ export default function App() {
     const matchInfo = GROUP_MATCHES.find(m=>m.id===comparingMatch) || 
                       KNOCKOUT_STAGES.find(s=>s.id===comparingMatch)
     const isKo = !!KNOCKOUT_STAGES.find(s=>s.id===comparingMatch)
-    const homeTeam = isKo ? knockoutTeams[comparingMatch]?.home_team : matchInfo?.home
-    const awayTeam = isKo ? knockoutTeams[comparingMatch]?.away_team : matchInfo?.away
+    const koId = comparingMatch?.replace('ko_','')
+    const homeTeam = isKo ? knockoutTeams[koId]?.home_team : matchInfo?.home
+    const awayTeam = isKo ? knockoutTeams[koId]?.away_team : matchInfo?.away
     const result = results[comparingMatch]
 
     return (
