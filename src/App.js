@@ -101,6 +101,11 @@ function MatchCard({ match, pred, onSave, result, isKnockout, isJoker, onToggleJ
         <div style={{textAlign:"center",fontSize:11,color:"#6a8caa",marginTop:5}}>
           Real: {result.home_score} – {result.away_score}
           {result.scorer && <span style={{marginLeft:8}}>⚽ {result.scorer}</span>}
+          {pred?.home_score != null && pred?.away_score != null && (() => {
+            const base = calcPoints({home_score:pred.home_score, away_score:pred.away_score}, result, isKnockout)
+            const matchPts = isJoker ? base * 2 : base
+            return matchPts > 0 ? <span style={{marginLeft:8,color:"#4cdc6a",fontWeight:700}}>✅+{matchPts}</span> : <span style={{marginLeft:8,color:"#e85555"}}>❌</span>
+          })()}
         </div>
       )}
       {/* Scorer dropdown */}
@@ -117,13 +122,24 @@ function MatchCard({ match, pred, onSave, result, isKnockout, isJoker, onToggleJ
           </select>
           {pred?.scorer && result?.scorer && (
             <span style={{fontSize:10,color: pred.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim()?"#4cdc6a":"#e85555",fontWeight:700}}>
-              {pred.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim()?"✅+5":"❌"}
+              {pred.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim()
+                ? `✅+${isJoker ? POINT_RULES.primerGol * 2 : POINT_RULES.primerGol}`
+                : "❌"}
             </span>
           )}
         </div>
       )}
       {locked && pred?.scorer && (
-        <div style={{fontSize:11,color:"#ff9500",marginTop:6}}>⚽ Tu 1er gol: <strong>{pred.scorer}</strong></div>
+        <div style={{fontSize:11,color:"#ff9500",marginTop:6,display:"flex",alignItems:"center",gap:6}}>
+          ⚽ Tu 1er gol: <strong>{pred.scorer}</strong>
+          {result?.scorer && (
+            <span style={{fontSize:10,fontWeight:700,color: pred.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim()?"#4cdc6a":"#e85555"}}>
+              {pred.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim()
+                ? `✅+${isJoker ? POINT_RULES.primerGol * 2 : POINT_RULES.primerGol}`
+                : "❌"}
+            </span>
+          )}
+        </div>
       )}
       {locked && onViewPreds && (
         <button onClick={onViewPreds}
@@ -138,6 +154,14 @@ function MatchCard({ match, pred, onSave, result, isKnockout, isJoker, onToggleJ
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 
 export default function App() {
+  // Auto-refresh every 5 minutes to ensure lock times are enforced
+  useEffect(() => {
+    const interval = setInterval(() => {
+      window.location.reload()
+    }, 5 * 60 * 1000) // 5 minutes
+    return () => clearInterval(interval)
+  }, [])
+
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -269,16 +293,22 @@ export default function App() {
         pts += earned
         if (pred?.is_joker && base > 0) jokerBonus += base
       })
-      // Primer Gol por partido
+      // Primer Gol por partido (con comodín si aplica)
       GROUP_MATCHES.forEach(m => {
         const pred = userPreds[m.id]
         const res = resMap[m.id]
-        if (pred?.scorer && res?.scorer && pred.scorer.toLowerCase().trim() === res.scorer.toLowerCase().trim()) pts += POINT_RULES.primerGol
+        if (pred?.scorer && res?.scorer && pred.scorer.toLowerCase().trim() === res.scorer.toLowerCase().trim()) {
+          const scorerPts = pred?.is_joker ? POINT_RULES.primerGol * 2 : POINT_RULES.primerGol
+          pts += scorerPts
+        }
       })
       KNOCKOUT_STAGES.forEach(s => {
         const pred = userKoPreds[s.id]
         const res = resMap[s.id]
-        if (pred?.scorer && res?.scorer && pred.scorer.toLowerCase().trim() === res.scorer.toLowerCase().trim()) pts += POINT_RULES.primerGol
+        if (pred?.scorer && res?.scorer && pred.scorer.toLowerCase().trim() === res.scorer.toLowerCase().trim()) {
+          const scorerPts = pred?.is_joker ? POINT_RULES.primerGol * 2 : POINT_RULES.primerGol
+          pts += scorerPts
+        }
       })
       if (userSp.champion && spR.champion && userSp.champion === spR.champion) pts += POINT_RULES.campeon
       if (userSp.top_scorer && spR.top_scorer && userSp.top_scorer.toLowerCase().trim() === spR.top_scorer.toLowerCase().trim()) pts += POINT_RULES.goleador
@@ -587,8 +617,26 @@ export default function App() {
       <p style={{color:"#6a8caa",fontSize:12,marginBottom:18}}>Se actualiza con cada resultado</p>
       {leaderboard.length===0
         ? <p style={{color:"#6a8caa",textAlign:"center",marginTop:60}}>Cargando...</p>
-        : leaderboard.map((p,i)=>(
-          <div key={p.id} style={{display:"flex",alignItems:"center",gap:13,...S.card,border:i===0?"1px solid rgba(245,200,66,0.3)":S.card.border}}>
+        : leaderboard.map((p,i)=>{
+          const isFirst = i===0
+          const isLast = i===leaderboard.length-1 && leaderboard.length>1
+          return (
+          <div key={p.id} style={{
+            display:"flex",alignItems:"center",gap:13,...S.card,
+            border:isFirst?"1px solid rgba(245,200,66,0.5)":isLast?"1px solid rgba(232,85,85,0.4)":S.card.border,
+            background:isFirst?"linear-gradient(135deg, rgba(245,200,66,0.08), rgba(255,255,255,0.04))":isLast?"linear-gradient(135deg, rgba(232,85,85,0.06), rgba(255,255,255,0.04))":S.card.background,
+            position:"relative"
+          }}>
+            {isFirst && (
+              <div style={{position:"absolute",top:-10,right:14,background:"#f5c842",color:"#1a1100",fontSize:10,fontWeight:700,padding:"2px 10px",borderRadius:20,letterSpacing:1}}>
+                👑 EL CRACK
+              </div>
+            )}
+            {isLast && (
+              <div style={{position:"absolute",top:-10,right:14,background:"#e85555",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 10px",borderRadius:20,letterSpacing:1}}>
+                🐢 FAROLERO
+              </div>
+            )}
             <span style={{fontSize:24,width:28,textAlign:"center"}}>{getMedal(i)}</span>
             <div style={{flex:1}}>
               <div style={{fontWeight:700,fontSize:15}}>{p.name}{p.id===session.user.id&&<span style={{fontSize:11,color:"#f5c842",marginLeft:6}}>← vos</span>}</div>
@@ -597,13 +645,15 @@ export default function App() {
                 {p.topScorer&&<span style={{marginLeft:8}}>👟 {p.topScorer}</span>}
                 {p.jokerBonus>0&&<span style={{marginLeft:8,color:"#ff9500"}}>🃏 +{p.jokerBonus}</span>}
               </div>
+              {isFirst && <div style={{fontSize:10,color:"#f5c842",marginTop:3,fontStyle:"italic"}}>¡Va liderando la quiniela! 🔥</div>}
+              {isLast && <div style={{fontSize:10,color:"#e85555",marginTop:3,fontStyle:"italic"}}>Necesita un milagro... 😅</div>}
             </div>
             <div style={{textAlign:"right"}}>
-              <div style={{fontSize:22,fontWeight:900,color:i===0?"#f5c842":"#fff"}}>{p.points}</div>
+              <div style={{fontSize:22,fontWeight:900,color:isFirst?"#f5c842":isLast?"#e85555":"#fff"}}>{p.points}</div>
               <div style={{fontSize:11,color:"#6a8caa"}}>pts</div>
             </div>
           </div>
-        ))
+        )})
       }
     </div>
   )
@@ -758,7 +808,7 @@ export default function App() {
             : preds.map((p,i) => {
                 const base = calcPoints({home_score:p.home_score,away_score:p.away_score}, result, isKo)
                 const pts = p.is_joker ? base*2 : base
-                const scorerPts = p.scorer && result?.scorer && p.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim() ? 5 : 0
+                const scorerPts = p.scorer && result?.scorer && p.scorer.toLowerCase().trim()===result.scorer.toLowerCase().trim() ? (p.is_joker ? POINT_RULES.primerGol * 2 : POINT_RULES.primerGol) : 0
                 const ptColor = pts > 0 ? "#4cdc6a" : "#e85555"
                 return (
                   <div key={i} style={{background:"rgba(255,255,255,0.05)",borderRadius:12,padding:"12px 14px",border:`1px solid ${p.name===session.user.email||allProfiles.find(pr=>pr.id===session.user.id)?.name===p.name?"rgba(245,200,66,0.4)":"rgba(255,255,255,0.08)"}`}}>
