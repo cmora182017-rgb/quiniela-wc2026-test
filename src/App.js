@@ -317,6 +317,7 @@ export default function App() {
     }).sort((a, b) => b.points - a.points)
 
     setLeaderboard(board)
+    return board
   }
 
   // Save prediction
@@ -419,11 +420,11 @@ export default function App() {
     const table = isKo ? 'knockout_predictions' : 'predictions'
     const idField = isKo ? 'stage_id' : 'match_id'
     const { data } = await supabase.from(table).select('*, profiles(name)').eq(idField, matchId)
-    // Asegurar que el leaderboard esté cargado para poder ordenar por posición
-    if (leaderboard.length === 0) await loadLeaderboard()
+    // Siempre recargar el leaderboard fresco para ordenar correctamente
+    const currentBoard = await loadLeaderboard()
     if (data) {
       const rankMap = {}
-      leaderboard.forEach((p, idx) => { rankMap[p.name] = idx })
+      currentBoard.forEach((p, idx) => { rankMap[p.name] = idx })
       const preds = data.map(p => ({
         name: p.profiles?.name || 'Desconocido',
         home_score: p.home_score,
