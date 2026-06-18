@@ -325,6 +325,7 @@ export default function App() {
       user_id: session.user.id, match_id: matchId,
       home_score: scores.home_score, away_score: scores.away_score,
       is_joker: predictions[matchId]?.is_joker || false,
+      scorer: predictions[matchId]?.scorer || null,
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id,match_id' })
     if (!error) setPredictions(prev => ({ ...prev, [matchId]: { ...prev[matchId], ...scores } }))
@@ -369,10 +370,11 @@ export default function App() {
     const idField = isKo ? 'stage_id' : 'match_id'
     const store = isKo ? koPredictions : predictions
     const setStore = isKo ? setKoPredictions : setPredictions
+    const existing = store[matchId] || {}
     await supabase.from(table).upsert({
       user_id: session.user.id, [idField]: matchId,
-      home_score: store[matchId]?.home_score, away_score: store[matchId]?.away_score,
-      is_joker: store[matchId]?.is_joker || false,
+      home_score: existing.home_score ?? null, away_score: existing.away_score ?? null,
+      is_joker: existing.is_joker || false,
       scorer: scorer,
       updated_at: new Date().toISOString()
     }, { onConflict: `user_id,${idField}` })
@@ -384,6 +386,7 @@ export default function App() {
       user_id: session.user.id, stage_id: stageId,
       home_score: scores.home_score, away_score: scores.away_score,
       is_joker: koPredictions[stageId]?.is_joker || false,
+      scorer: koPredictions[stageId]?.scorer || null,
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id,stage_id' })
     if (!error) setKoPredictions(prev => ({ ...prev, [stageId]: { ...prev[stageId], ...scores } }))
@@ -416,14 +419,22 @@ export default function App() {
     const table = isKo ? 'knockout_predictions' : 'predictions'
     const idField = isKo ? 'stage_id' : 'match_id'
     const { data } = await supabase.from(table).select('*, profiles(name)').eq(idField, matchId)
+    // Asegurar que el leaderboard esté cargado para poder ordenar por posición
+    if (leaderboard.length === 0) await loadLeaderboard()
     if (data) {
+      const rankMap = {}
+      leaderboard.forEach((p, idx) => { rankMap[p.name] = idx })
       const preds = data.map(p => ({
         name: p.profiles?.name || 'Desconocido',
         home_score: p.home_score,
         away_score: p.away_score,
         scorer: p.scorer,
         is_joker: p.is_joker
-      })).sort((a,b) => a.name.localeCompare(b.name))
+      })).sort((a,b) => {
+        const rA = rankMap[a.name] ?? 999
+        const rB = rankMap[b.name] ?? 999
+        return rA - rB
+      })
       setAllMatchPreds(prev => ({ ...prev, [matchId]: preds }))
       setComparingMatch(matchId)
       setScreen('compare')
@@ -813,6 +824,7 @@ export default function App() {
                 return (
                   <div key={i} style={{background:"rgba(255,255,255,0.05)",borderRadius:12,padding:"12px 14px",border:`1px solid ${p.name===session.user.email||allProfiles.find(pr=>pr.id===session.user.id)?.name===p.name?"rgba(245,200,66,0.4)":"rgba(255,255,255,0.08)"}`}}>
                     <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:13,color:"#6a8caa",width:24,textAlign:"center",fontWeight:700}}>{getMedal(i)}</span>
                       <div style={{flex:1}}>
                         <div style={{fontWeight:700,fontSize:14}}>{p.name}</div>
                         {p.scorer && <div style={{fontSize:11,color:"#ff9500",marginTop:2}}>⚽ {p.scorer} {scorerPts>0?"✅":result?.scorer?"❌":""}</div>}
